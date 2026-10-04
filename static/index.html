@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WaterBattery | Solar-synced smart irrigation</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💧</text></svg>">
+<style>
+:root{--bg:#eef3e6;--card:#fbfdf7;--ink:#16241b;--mut:#5b6b60;--sun:#e8a317;--water:#1f7fb5;--base:#a3544a;--line:#d3dcc7;--grid:#9aa59c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a14;--card:#16251c;--ink:#e6f0e4;--mut:#93a698;--sun:#f2b83a;--water:#52b0e2;--base:#d88277;--line:#27382d;--grid:#5d7064}}
+:root[data-theme="dark"]{--bg:#0f1a14;--card:#16251c;--ink:#e6f0e4;--mut:#93a698;--sun:#f2b83a;--water:#52b0e2;--base:#d88277;--line:#27382d;--grid:#5d7064}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1,h2{font-family:system-ui,sans-serif;margin:0;line-height:1.1}
+h1{font-size:clamp(2rem,6vw,3.2rem);letter-spacing:-.02em}
+.sub{color:var(--mut);max-width:60ch;margin:8px 0 22px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+label{display:block;font-size:.85rem;color:var(--mut);margin-bottom:4px}
+select,input[type=range]{width:100%}
+select{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.chk{display:flex;gap:8px;align-items:center;margin-top:24px;color:var(--ink);font-size:.95rem}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{border-left:4px solid var(--water);padding:4px 12px}
+.kpi b{font:700 1.8rem system-ui,sans-serif;display:block}
+.kpi span{font-size:.85rem;color:var(--mut)}
+.chartwrap{overflow-x:auto}
+svg{display:block;width:100%;min-width:560px;height:auto}
+svg text{fill:var(--mut);font:11px system-ui,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.85rem;color:var(--mut);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.stat div{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:.92rem}
+.stat strong{display:block}
+ul{margin:8px 0 0;padding-left:20px}
+:focus-visible{outline:3px solid var(--water);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<h1>WaterBattery</h1>
+<p class="sub">Irrigation timers ignore the sun. WaterBattery pumps when solar power is plentiful and cheap, skips irrigation before rain, and still delivers what the crop needs. Change the farm below and watch the 48-hour plan rebuild.</p>
+
+<section class="panel ctl" aria-label="Farm settings">
+<div><label for="crop">Crop</label><select id="crop"><option value="tomato">Tomato</option><option value="wheat">Wheat</option><option value="maize">Maize</option><option value="rice">Rice</option></select></div>
+<div><label for="acres">Field size: <span id="acv">4</span> acres</label><input id="acres" type="range" min="1" max="8" value="4"></div>
+<div><label for="sky">Sky forecast</label><select id="sky"><option value="clear">Clear</option><option value="partly">Partly cloudy</option><option value="overcast">Overcast</option></select></div>
+<div class="chk"><input id="rain" type="checkbox" checked><label for="rain" style="margin:0;color:inherit">Rain forecast on day 2</label></div>
+<div><button id="live" type="button" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer">Use live forecast for my location</button></div>
+</section>
+<p class="sub" id="src" aria-live="polite" style="margin:0 0 12px">Using scenario inputs.</p><p id="err" role="alert" style="color:var(--base)"></p>
+
+<section class="panel" aria-label="Results">
+<div class="kpis">
+<div class="kpi"><b id="k1">-</b><span>lower pumping cost</span></div>
+<div class="kpi"><b id="k2">-</b><span>water saved (48 h)</span></div>
+<div class="kpi"><b id="k3">-</b><span>solar share of pumping</span></div>
+<div class="kpi"><b id="k4">-</b><span>CO2 avoided (48 h)</span></div>
+</div>
+</section>
+
+<section class="panel" aria-label="48 hour schedule">
+<h2 style="font-size:1.3rem;margin-bottom:8px">Pump schedule, next 48 hours</h2>
+<div class="chartwrap"><svg id="chart" viewBox="0 0 720 270" role="img" aria-label="Pump run times for a fixed timer versus WaterBattery, over the sun curve"></svg></div>
+<div class="legend"><span><i style="background:var(--sun);opacity:.45"></i>Sunlight</span><span><i style="background:var(--base)"></i>Fixed timer</span><span><i style="background:var(--water)"></i>WaterBattery</span></div>
+<div style="margin-top:14px"><label for="hr">Scrub time: <b id="hrl"></b></label><input id="hr" type="range" min="0" max="47" value="12"></div>
+<div class="stat" id="now"></div>
+</section>
+
+<section class="panel">
+<h2 style="font-size:1.3rem">Why this schedule</h2>
+<ul id="why"></ul>
+<p class="sub" style="margin:12px 0 0;font-size:.85rem">Simulated demo. Crop demand uses typical daily water needs; tariffs, a 3 kW / 12 m3-per-hour pump and a 0.82 kg/kWh grid emission factor are illustrative assumptions.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,"0")+":00";
+let live=null,plan=null;
+async function run(){
+  $("acv").textContent=$("acres").value;$("err").textContent="";
+  const body={crop:$("crop").value,acres:+$("acres").value};
+  if(live){body.cloud_cover=live.cloud_cover;body.rain_mm=live.rain_mm}
+  else{body.sky=$("sky").value;body.rain_mm=[0,$("rain").checked?12:0]}
+  try{
+    const r=await fetch("/api/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).detail||r.status);
+    plan=await r.json();render();
+  }catch(e){$("err").textContent="Could not build plan: "+e.message}
+}
+function render(){
+  const s=plan.savings;
+  $("k1").textContent=s.cost_pct+"%";$("k2").textContent=s.water_m3+" m3";
+  $("k3").textContent=s.solar_share_pct+"%";$("k4").textContent=s.co2_kg+" kg";
+  $("why").innerHTML=plan.notes.map(n=>"<li>"+n+"</li>").join("");
+  now();
+}
+function draw(){
+  const X0=40,W=640/48,P=[[110,plan.baseline.schedule,"var(--base)","Fixed timer"],[230,plan.optimized.schedule,"var(--water)","WaterBattery"]],o=[];
+  P.forEach(([y,a,c,t])=>{
+    let d="M"+X0+","+y;for(let h=0;h<48;h++){d+=" L"+(X0+(h+.5)*W)+","+(y-plan.sun[h]*70)}
+    o.push(`<path d="${d} L${X0+640},${y}Z" fill="var(--sun)" opacity=".28"/><line x1="${X0}" x2="${X0+640}" y1="${y}" y2="${y}" stroke="var(--grid)"/><text x="${X0}" y="${y-80}" style="font-weight:600">${t}</text>`);
+    a.forEach((v,h)=>{if(v>.001)o.push(`<rect x="${X0+h*W+1}" y="${y-v*70}" width="${W-2}" height="${v*70}" rx="2" fill="${c}"/>`)});
+  });
+  for(let t=0;t<=48;t+=6)o.push(`<text x="${X0+t*W}" y="256" text-anchor="middle">${pad(t%24).slice(0,2)}</text>`);
+  o.push(`<line x1="${X0+24*W}" x2="${X0+24*W}" y1="20" y2="240" stroke="var(--grid)" stroke-dasharray="3 4"/><text x="${X0+12*W}" y="268" text-anchor="middle">Day 1</text><text x="${X0+36*W}" y="268" text-anchor="middle">Day 2</text>`);
+  const c=X0+(+$("hr").value+.5)*W;
+  o.push(`<line x1="${c}" x2="${c}" y1="20" y2="240" stroke="var(--ink)" stroke-width="2"/>`);
+  $("chart").innerHTML=o.join("");
+}
+function now(){
+  if(!plan)return;const h=+$("hr").value,b=plan.baseline.schedule[h],o=plan.optimized.schedule[h];
+  $("hrl").textContent="Day "+(h<24?1:2)+", "+pad(h%24);
+  const m=(a,w)=>a>.01?`${w} is pumping (${Math.round(a*60)} min this hour)`:`${w} is idle`;
+  $("now").innerHTML=`<div><strong>Sun power</strong>${Math.round(plan.sun[h]*100)}% of peak</div><div><strong>Grid tariff</strong>Rs ${plan.tariff[h]} per kWh</div><div><strong>Fixed timer</strong>${m(b,"Timer")}</div><div><strong>WaterBattery</strong>${m(o,"Pump")}</div>`;
+  draw();
+}
+["crop","acres","sky","rain"].forEach(i=>$(i).addEventListener("input",()=>{live=null;$("src").textContent="Using scenario inputs.";run()}));
+$("hr").addEventListener("input",now);
+$("live").addEventListener("click",()=>{
+  if(!navigator.geolocation){$("err").textContent="Location is not available in this browser.";return}
+  $("src").textContent="Fetching live forecast...";
+  navigator.geolocation.getCurrentPosition(async p=>{
+    try{
+      const r=await fetch(`/api/forecast?lat=${p.coords.latitude}&lon=${p.coords.longitude}`);
+      if(!r.ok)throw new Error((await r.json()).detail);
+      live=await r.json();$("src").textContent="Using live Open-Meteo forecast for your location (changing a control returns to scenarios).";run();
+    }catch(e){$("err").textContent=e.message;$("src").textContent="Using scenario inputs."}
+  },()=>{$("err").textContent="Location permission was denied.";$("src").textContent="Using scenario inputs."});
+});
+run();
+</script>
+</body>
+</html>

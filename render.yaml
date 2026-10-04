@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: waterbattery
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
