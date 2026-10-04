@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WaterBattery demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3e6;--card:#fbfdf7;--ink:#16241b;--mut:#5b6b60;--sun:#e8a317;--water:#1f7fb5;--base:#a3544a;--line:#d3dcc7;--grid:#9aa59c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a14;--card:#16251c;--ink:#e6f0e4;--mut:#93a698;--sun:#f2b83a;--water:#52b0e2;--base:#d88277;--line:#27382d;--grid:#5d7064}}
+:root[data-theme="dark"]{--bg:#0f1a14;--card:#16251c;--ink:#e6f0e4;--mut:#93a698;--sun:#f2b83a;--water:#52b0e2;--base:#d88277;--line:#27382d;--grid:#5d7064}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1,h2{font-family:"Bricolage Grotesque",system-ui,sans-serif;margin:0;line-height:1.1}
+h1{font-size:clamp(2rem,6vw,3.2rem);letter-spacing:-.02em}
+.sub{color:var(--mut);max-width:60ch;margin:8px 0 22px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+label{display:block;font-size:.85rem;color:var(--mut);margin-bottom:4px}
+select,input[type=range]{width:100%}
+select{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.chk{display:flex;gap:8px;align-items:center;margin-top:24px;color:var(--ink);font-size:.95rem}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{border-left:4px solid var(--water);padding:4px 12px}
+.kpi b{font:700 1.8rem "Bricolage Grotesque",system-ui,sans-serif;display:block}
+.kpi span{font-size:.85rem;color:var(--mut)}
+.chartwrap{overflow-x:auto}
+svg{display:block;width:100%;min-width:560px;height:auto}
+svg text{fill:var(--mut);font:11px system-ui,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.85rem;color:var(--mut);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.stat div{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:.92rem}
+.stat strong{display:block}
+ul{margin:8px 0 0;padding-left:20px}
+:focus-visible{outline:3px solid var(--water);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<h1>WaterBattery</h1>
+<p class="sub">Irrigation timers ignore the sun. WaterBattery pumps when solar power is plentiful and cheap, skips irrigation before rain, and still delivers what the crop needs. Change the farm below and watch the 48-hour plan rebuild.</p>
+
+<section class="panel ctl" aria-label="Farm settings">
+<div><label for="crop">Crop</label><select id="crop"><option>Tomato</option><option>Wheat</option><option>Maize</option><option>Rice</option></select></div>
+<div><label for="acres">Field size: <span id="acv">4</span> acres</label><input id="acres" type="range" min="1" max="8" value="4"></div>
+<div><label for="sky">Sky forecast</label><select id="sky"><option>Clear</option><option>Partly cloudy</option><option>Overcast</option></select></div>
+<div class="chk"><input id="rain" type="checkbox" checked><label for="rain" style="margin:0;color:inherit">Rain forecast on day 2</label></div>
+</section>
+
+<section class="panel" aria-label="Results">
+<div class="kpis">
+<div class="kpi"><b id="k1">-</b><span>lower pumping cost</span></div>
+<div class="kpi"><b id="k2">-</b><span>water saved (48 h)</span></div>
+<div class="kpi"><b id="k3">-</b><span>solar share of pumping</span></div>
+<div class="kpi"><b id="k4">-</b><span>CO2 avoided (48 h)</span></div>
+</div>
+</section>
+
+<section class="panel" aria-label="48 hour schedule">
+<h2 style="font-size:1.3rem;margin-bottom:8px">Pump schedule, next 48 hours</h2>
+<div class="chartwrap"><svg id="chart" viewBox="0 0 720 270" role="img" aria-label="Pump run times for a fixed timer versus WaterBattery, over the sun curve"></svg></div>
+<div class="legend"><span><i style="background:var(--sun);opacity:.45"></i>Sunlight</span><span><i style="background:var(--base)"></i>Fixed timer</span><span><i style="background:var(--water)"></i>WaterBattery</span></div>
+<div style="margin-top:14px"><label for="hr">Scrub time: <b id="hrl"></b></label><input id="hr" type="range" min="0" max="47" value="12"></div>
+<div class="stat" id="now"></div>
+</section>
+
+<section class="panel">
+<h2 style="font-size:1.3rem">Why this schedule</h2>
+<ul id="why"></ul>
+<p class="sub" style="margin:12px 0 0;font-size:.85rem">Simulated demo. Crop demand uses typical daily water needs; tariffs, a 3 kW / 12 m3-per-hour pump and a 0.82 kg/kWh grid emission factor are illustrative assumptions.</p>
+</section>
+</main>
+<script>
+var $=function(i){return document.getElementById(i)};
+var ET={Tomato:5,Wheat:4,Maize:5.5,Rice:8},SKY={"Clear":1,"Partly cloudy":.6,"Overcast":.3},KW=3,FLOW=12;
+function sun(h,k){var t=h%24;return t<6||t>18?0:Math.sin(Math.PI*(t-6)/12)*k}
+function tar(h){var t=h%24;return t>=22||t<6?5:t>=18?11:7}
+function eff(h,k){return tar(h)*(1-.85*sun(h,k))}
+function fill(a,slots,T){slots.forEach(function(s){if(T<=0||s>47)return;var x=Math.min(1-a[s],T,1);a[s]+=x;T-=x})}
+function pad(n){return(n<10?"0":"")+n+":00"}
+var S={};
+function sim(){
+var crop=$("crop").value,ac=+$("acres").value,k=SKY[$("sky").value],rain=$("rain").checked;
+$("acv").textContent=ac;
+var D=ET[crop]*ac*4.047,base=new Array(48).fill(0),opt=new Array(48).fill(0);
+for(var d=0;d<2;d++){
+var Tb=Math.min(24,1.25*D/FLOW),sl=[],i;
+for(i=0;i<18;i++)sl.push(d*24+6+i);
+var m=[],e=[];for(i=0;i<12;i++)m.push(d*24+6+i);for(i=0;i<12;i++)e.push(d*24+18+i);
+fill(base,m,Tb/2);fill(base,e,Tb/2);
+var To=(rain&&d==1)?0:Math.min(24,D/FLOW),hrs=[];
+for(i=0;i<24;i++)hrs.push(d*24+i);
+hrs.sort(function(a,b){return eff(a,k)-eff(b,k)||Math.abs(a%24-12)-Math.abs(b%24-12)});
+fill(opt,hrs,To)}
+function tot(a){var kwh=0,c=0,g=0;a.forEach(function(x,h){var q=x*KW;kwh+=q;c+=q*eff(h,k);g+=q*(1-sun(h,k))});return{kwh:kwh,cost:c,grid:g,water:a.reduce(function(s,x){return s+x*FLOW},0)}}
+var B=tot(base),O=tot(opt);
+S={base:base,opt:opt,k:k,rain:rain,B:B,O:O};
+var cs=B.cost?Math.round(100*(1-O.cost/B.cost)):0;
+$("k1").textContent=cs+"%";
+$("k2").textContent=Math.round(B.water-O.water)+" m3";
+$("k3").textContent=O.kwh?Math.round(100*(1-O.grid/O.kwh))+"%":"-";
+$("k4").textContent=Math.round((B.grid-O.grid)*.82)+" kg";
+draw();why();now()}
+function draw(){
+var X0=40,W=640/48,svg=["<g>"],panels=[[110,S.base,"var(--base)","Fixed timer"],[230,S.opt,"var(--water)","WaterBattery"]];
+panels.forEach(function(p){
+var y=p[0],pts="M"+X0+","+y;
+for(var h=0;h<=48;h++)pts+=" L"+(X0+h*W)+","+(y-sun(h-.5,S.k)*70);
+pts+=" L"+(X0+48*W)+","+y+"Z";
+svg.push('<path d="'+pts+'" fill="var(--sun)" opacity=".28"/>');
+svg.push('<line x1="'+X0+'" x2="'+(X0+640)+'" y1="'+y+'" y2="'+y+'" stroke="var(--grid)"/>');
+svg.push('<text x="'+X0+'" y="'+(y-80)+'" style="font-weight:600">'+p[3]+'</text>');
+p[1].forEach(function(a,h){if(a>.001)svg.push('<rect x="'+(X0+h*W+1)+'" y="'+(y-a*70)+'" width="'+(W-2)+'" height="'+(a*70)+'" rx="2" fill="'+p[2]+'"/>')})});
+for(var t=0;t<=48;t+=6)svg.push('<text x="'+(X0+t*W)+'" y="256" text-anchor="middle">'+pad(t%24).slice(0,2)+'</text>');
+svg.push('<line x1="'+(X0+24*W)+'" x2="'+(X0+24*W)+'" y1="20" y2="240" stroke="var(--grid)" stroke-dasharray="3 4"/>');
+svg.push('<text x="'+(X0+12*W)+'" y="268" text-anchor="middle">Day 1</text><text x="'+(X0+36*W)+'" y="268" text-anchor="middle">Day 2'+(S.rain?" (rain)":"")+'</text>');
+var c=X0+(+$("hr").value+.5)*W;
+svg.push('<line x1="'+c+'" x2="'+c+'" y1="20" y2="240" stroke="var(--ink)" stroke-width="2"/></g>');
+$("chart").innerHTML=svg.join("")}
+function now(){
+var h=+$("hr").value;$("hrl").textContent="Day "+(h<24?1:2)+", "+pad(h%24);
+var s=Math.round(sun(h,S.k)*100),b=S.base[h],o=S.opt[h];
+var msg=function(a,who){return a>.01?who+" is pumping ("+Math.round(a*60)+" min this hour)":who+" is idle"};
+var why=o>.01?(s>40?"Pumping on strong sun":"Pumping, best slot left today"):(S.rain&&h>=24?"Idle, rain is coming":"Waiting for cheaper, sunnier hours");
+$("now").innerHTML='<div><strong>Sun power</strong>'+s+'% of peak</div><div><strong>Grid tariff</strong>Rs '+tar(h)+' per kWh</div><div><strong>Fixed timer</strong>'+msg(b,"Timer")+'</div><div><strong>WaterBattery</strong>'+why+'</div>';
+draw()}
+function why(){
+var L=[],D=[0,1];
+D.forEach(function(d){var on=[];for(var i=0;i<24;i++)if(S.opt[d*24+i]>.01)on.push(i);
+if(!on.length)L.push("Day "+(d+1)+": no pumping. "+(S.rain?"Forecast rain covers the crop's water need.":"No demand."));
+else L.push("Day "+(d+1)+": pumps between "+pad(on[0])+" and "+pad(on[on.length-1]+1)+", the lowest effective cost window.")});
+L.push("Water use falls by "+Math.round(S.B.water-S.O.water)+" m3 because the timer over-irrigates by 25% and ignores rain.");
+L.push("Cost falls "+$("k1").textContent+": midday pumping runs on solar instead of evening peak-rate grid power.");
+$("why").innerHTML=L.map(function(x){return"<li>"+x+"</li>"}).join("")}
+["crop","acres","sky","rain"].forEach(function(i){$(i).addEventListener("input",sim)});
+$("hr").addEventListener("input",now);
+sim();
+</script>
+</body>
+</html>
